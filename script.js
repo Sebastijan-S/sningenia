@@ -1,25 +1,12 @@
-const revealObserver = new IntersectionObserver((entries) => {
-  entries.forEach((entry) => {
-    if (!entry.isIntersecting) return;
-
-    const parent = entry.target.parentElement;
-    const siblings = parent ? parent.querySelectorAll('.reveal:not(.visible)') : [entry.target];
-    let delay = 0;
-
-    siblings.forEach((el) => {
-      if (el === entry.target || el.getBoundingClientRect().top < window.innerHeight) {
-        setTimeout(() => el.classList.add('visible'), delay);
-        delay += 80;
-      }
-    });
-
-    entry.target.classList.add('visible');
-    revealObserver.unobserve(entry.target);
-  });
-}, { threshold: 0.15 });
-
-document.querySelectorAll('.reveal').forEach((el) => revealObserver.observe(el));
-
+const focusSection = (target) => {
+  const heading = target.querySelector('h1, h2') || target;
+  if (!heading.hasAttribute('tabindex')) {
+    heading.setAttribute('tabindex', '-1');
+    heading.addEventListener('blur', () => heading.removeAttribute('tabindex'), { once: true });
+  }
+  heading.focus({ preventScroll: true });
+  target.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+};
 const navToggle = document.querySelector('.nav-toggle');
 const mobileNav = document.querySelector('.mobile-nav');
 const navLinks = Array.from(document.querySelectorAll('.nav-links a, .mobile-nav-links a'));
@@ -32,14 +19,16 @@ const openMobileNav = () => {
   navToggle.setAttribute('aria-expanded', 'true');
   document.body.style.overflow = 'hidden';
   mobileNav.querySelector('a')?.focus();
+  updateMobileCta();
 };
 
-const closeMobileNav = () => {
+const closeMobileNav = (restoreFocus = true) => {
   mobileNav.setAttribute('inert', '');
   mobileNav.setAttribute('aria-hidden', 'true');
   navToggle.setAttribute('aria-expanded', 'false');
   document.body.style.overflow = '';
-  navToggle.focus();
+  if (restoreFocus) navToggle.focus();
+  updateMobileCta();
 };
 
 navToggle?.addEventListener('click', () => {
@@ -52,6 +41,7 @@ navToggle?.addEventListener('click', () => {
 
 navLinks.forEach((link) => {
   link.addEventListener('click', (event) => {
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     const href = link.getAttribute('href') || '';
     if (!href.startsWith('#')) return;
 
@@ -59,9 +49,9 @@ navLinks.forEach((link) => {
     if (!target) return;
 
     event.preventDefault();
-    const behavior = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
-    target.scrollIntoView({ behavior, block: 'start' });
-    closeMobileNav();
+    if (mobileNav.getAttribute('aria-hidden') === 'false') closeMobileNav(false);
+    history.pushState(null, '', href);
+    focusSection(target);
   });
 });
 
@@ -95,22 +85,16 @@ const modalBackdrop = document.getElementById('modalBackdrop');
 const modalClose = document.getElementById('modalClose');
 const modalTitle = document.getElementById('modalTitle');
 const modalSubtitle = document.querySelector('.modal-subtitle');
-const modalDetails = document.querySelector('.modal-details');
 const modalCopy = document.querySelector('.modal-copy');
 const modalResult = document.querySelector('.modal-result');
 const modalImage = document.getElementById('modalImage');
-const contactForm = document.getElementById('contactForm');
-const contactSuccess = document.getElementById('contactSuccess');
-const contactError = document.getElementById('contactError');
-const contactErrorMessage = document.getElementById('contactErrorMessage');
 const isSerbian = document.documentElement.lang === 'sr';
-
-const showContactError = (message) => {
-  if (contactErrorMessage) contactErrorMessage.textContent = message;
-  if (contactSuccess) contactSuccess.hidden = true;
-  if (contactError) contactError.hidden = false;
-  document.dispatchEvent(new CustomEvent('sn:form-error'));
+const showLoadedImage = () => {
+  modalImage.classList.remove('is-loading');
+  modalImage.parentElement.removeAttribute('aria-busy');
 };
+modalImage.addEventListener('load', showLoadedImage);
+modalImage.addEventListener('error', showLoadedImage);
 
 const focusableSelector = 'button, [href], input, textarea, select, [tabindex]:not([tabindex="-1"])';
 let focusableModalElements = [];
@@ -141,19 +125,28 @@ const trapModalFocus = (event) => {
 };
 
 const openModal = () => {
+  document.querySelectorAll('body > :not(.project-modal):not(script)').forEach(el => {
+    if (!el.hasAttribute('inert')) { el.setAttribute('inert', ''); el.dataset.modalInert = 'true'; }
+  });
+  modal.removeAttribute('inert');
+  modal.querySelector('.modal-content').scrollTop = 0;
   modal.classList.add('active');
   modal.setAttribute('aria-hidden', 'false');
   document.body.style.overflow = 'hidden';
   updateModalFocus();
   firstFocusableModal?.focus();
+  updateMobileCta();
 };
 
 const closeModal = () => {
+  document.querySelectorAll('[data-modal-inert]').forEach(el => { el.removeAttribute('inert'); delete el.dataset.modalInert; });
+  modal.setAttribute('inert', '');
   modal.classList.remove('active');
   modal.setAttribute('aria-hidden', 'true');
   document.body.style.overflow = '';
   modalTrigger?.focus();
   modalTrigger = null;
+  updateMobileCta();
 };
 
 let modalTrigger = null;
@@ -165,30 +158,29 @@ cardOpenButtons.forEach((button) => {
 
     const title = card.querySelector('.card-title')?.textContent?.trim() || 'Project title';
     const description = card.querySelector('.card-desc')?.textContent?.trim() || '';
-    const role = card.dataset.role || '';
-    const timeline = card.dataset.timeline || '';
-    const deliverables = card.dataset.deliverables || '';
     const challenge = card.dataset.challenge || '';
     const solution = card.dataset.solution || '';
     const result = card.dataset.result || '';
     const image = card.dataset.image || '';
-    const detailValues = modalDetails.querySelectorAll('strong');
 
     modalTitle.textContent = title;
     modalSubtitle.textContent = description;
-    if (detailValues.length >= 3) {
-      detailValues[0].textContent = role;
-      detailValues[1].textContent = timeline;
-      detailValues[2].textContent = deliverables;
-    }
+    document.querySelector('.modal-tag').textContent = card.dataset.status;
+    const demo = card.dataset.demo === 'true';
+    const headings = modalCopy.querySelectorAll('h3');
+    headings[0].textContent = isSerbian ? (demo ? 'Namena demo projekta' : 'Namena') : (demo ? 'Demo purpose' : 'Purpose');
+    headings[1].textContent = isSerbian ? 'Vizuelni pristup' : 'Visual approach';
     modalCopy.querySelector('.modal-block:nth-of-type(1) p').textContent = challenge;
     modalCopy.querySelector('.modal-block:nth-of-type(2) p').textContent = solution;
     if (modalResult) {
       modalResult.querySelector('p').textContent = result;
     }
     if (modalImage) {
+      modalImage.classList.add('is-loading');
+      modalImage.parentElement.setAttribute('aria-busy', 'true');
+      modalImage.loading = 'eager';
       modalImage.src = image;
-      modalImage.alt = `${title} case study image`;
+      modalImage.alt = `${title} — ${isSerbian ? 'prikaz interfejsa' : 'interface preview'}`;
     }
 
     modalTrigger = button;
@@ -196,6 +188,12 @@ cardOpenButtons.forEach((button) => {
   });
 });
 
+document.querySelector('.modal-call').addEventListener('click', (event) => {
+  event.preventDefault();
+  closeModal();
+  history.pushState(null, '', '#contact');
+  focusSection(document.getElementById('contact'));
+});
 modalClose.addEventListener('click', closeModal);
 modalBackdrop.addEventListener('click', closeModal);
 
@@ -229,65 +227,43 @@ document.addEventListener('keydown', (event) => {
   }
 });
 
-if (contactForm) {
-  contactForm.addEventListener('submit', async (event) => {
-    event.preventDefault();
-    if (contactForm.elements.website.value) return;
-
-    const endpoint = contactForm.dataset.endpoint.trim();
-    if (!endpoint) {
-      showContactError(isSerbian
-        ? 'Forma još nije povezana. Pošaljite nam e-poruku na'
-        : 'The form is not connected yet. Please email');
-      return;
-    }
-
-    if (contactError) contactError.hidden = true;
-    try {
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        body: new FormData(contactForm)
-      });
-      if (!response.ok) throw new Error('Form submission failed');
-
-      if (contactSuccess) contactSuccess.hidden = false;
-      document.dispatchEvent(new CustomEvent('sn:form-success'));
-      contactForm.reset();
-    } catch {
-      showContactError(isSerbian
-        ? 'Poruku nije bilo moguće poslati. Pošaljite nam e-poruku na'
-        : 'Your message could not be sent. Please email');
-    }
-  });
-}
-
 const mobileCta = document.getElementById('mobileCta');
 const heroSection = document.getElementById('home');
 const contactSection = document.getElementById('contact');
 
-if (mobileCta && heroSection && contactSection && 'IntersectionObserver' in window) {
-  let heroVisible = true;
-  let contactVisible = false;
-
-  const updateMobileCta = () => {
-    const showCta = !heroVisible && !contactVisible;
-    mobileCta.setAttribute('aria-hidden', String(!showCta));
-    if (showCta) {
-      mobileCta.removeAttribute('inert');
-    } else {
-      mobileCta.setAttribute('inert', '');
-    }
+// Keep the call action out of the hero, contact section and open overlays.
+function updateMobileCta() {
+  if (!mobileCta || !heroSection || !contactSection) return;
+  const intersectsViewport = (element) => {
+    const rect = element.getBoundingClientRect();
+    return rect.top < window.innerHeight && rect.bottom > 0;
   };
-
-  const heroObserver = new IntersectionObserver(([entry]) => {
-    heroVisible = entry.isIntersecting;
-    updateMobileCta();
-  });
-  const contactObserver = new IntersectionObserver(([entry]) => {
-    contactVisible = entry.isIntersecting;
-    updateMobileCta();
-  });
-
-  heroObserver.observe(heroSection);
-  contactObserver.observe(contactSection);
+  const showCta = window.matchMedia('(max-width: 900px)').matches &&
+    !intersectsViewport(heroSection) && !intersectsViewport(contactSection) &&
+    !modal.classList.contains('active') && mobileNav.getAttribute('aria-hidden') !== 'false';
+  mobileCta.setAttribute('aria-hidden', String(!showCta));
+  mobileCta.toggleAttribute('inert', !showCta);
 }
+
+const measureMobileCta = () => {
+  if (!mobileCta) return;
+  const height = mobileCta.getBoundingClientRect().height;
+  if (height) document.documentElement.style.setProperty('--sticky-clearance', height + 'px');
+  updateMobileCta();
+};
+let ctaFrame = 0;
+window.addEventListener('scroll', () => {
+  if (ctaFrame) return;
+  ctaFrame = requestAnimationFrame(() => { ctaFrame = 0; updateMobileCta(); });
+}, { passive: true });
+window.addEventListener('resize', measureMobileCta);
+if (mobileCta && 'ResizeObserver' in window) new ResizeObserver(measureMobileCta).observe(mobileCta);
+modal.setAttribute('inert', '');
+measureMobileCta();
+
+window.matchMedia('(max-width: 900px)').addEventListener('change', event => {
+  if (!event.matches && mobileNav.getAttribute('aria-hidden') === 'false') closeMobileNav(false);
+});
+
+// Enable enhanced controls only after essential handlers initialize successfully.
+document.documentElement.classList.add('site-ready');
