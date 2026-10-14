@@ -451,6 +451,17 @@ h1 { text-wrap: balance; }
   font-size: 1.8rem;
   margin-bottom: 0.35rem;
 }
+.creator-name-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--stone);
+  text-decoration-thickness: 1px;
+  text-underline-offset: .18em;
+}
+.creator-name-link:hover { color: var(--accent); }
 .creator-role {
   font-size: 0.94rem;
   font-weight: 600;
@@ -962,6 +973,9 @@ html:not(.site-ready) .nav-toggle, html:not(.site-ready) .card-open { display: n
 .contact-intro > p:last-child { max-width: 37ch; color: var(--stone); }
 .contact-details { gap: 1.5rem; }
 .contact-brief { max-width: 40ch; }
+.contact-details .contact-email-help { font-size: .875rem; line-height: 1.6; color: var(--stone); }
+.contact-email-help a { display: inline-flex; align-items: center; gap: .25em; min-height: 44px; }
+.contact-email-help a:hover { color: var(--bg); }
 .contact-email-button { align-self: flex-start; display: inline-flex; gap: 1.5rem; align-items: center; }
 .contact-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem 2rem; padding-top: 1.5rem; border-top: 1px solid rgba(196,185,168,.3); }
 .contact-meta .contact-email { grid-column: 1 / -1; }
