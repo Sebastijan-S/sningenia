@@ -511,6 +511,10 @@ h1 { text-wrap: balance; }
   object-fit: cover;
   display: block;
 }
+/* Fill the frame when the source portrait includes transparent padding. */
+.creator-img--padded-source img {
+  transform: scale(1.1);
+}
 .creator-body {
   padding: 1rem 1.75rem 1.75rem;
 }
@@ -519,17 +523,6 @@ h1 { text-wrap: balance; }
   font-size: 1.8rem;
   margin-bottom: 0.35rem;
 }
-.creator-name-link {
-  display: inline-flex;
-  align-items: center;
-  min-height: 44px;
-  color: inherit;
-  text-decoration: underline;
-  text-decoration-color: var(--stone);
-  text-decoration-thickness: 1px;
-  text-underline-offset: .18em;
-}
-.creator-name-link:hover { color: var(--accent); }
 .creator-role {
   font-size: 0.94rem;
   font-weight: 600;
